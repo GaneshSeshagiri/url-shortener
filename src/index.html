@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snip — URL Shortener</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --border: #2a2a2a;
+    --border2: #333;
+    --accent: #c8f560;
+    --accent-dim: #a8d448;
+    --text: #f0f0f0;
+    --text2: #888;
+    --text3: #555;
+    --red: #ff4d4d;
+    --red-dim: #ff4d4d22;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Syne', sans-serif;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 400px;
+    background: radial-gradient(ellipse, rgba(200,245,96,0.07) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 740px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+    width: 100%;
+    flex: 1;
+  }
+
+  header {
+    padding: 2.5rem 0 3rem;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+
+  .logo { font-size: 13px; font-family: var(--mono); color: var(--text2); letter-spacing: 0.1em; }
+  .logo span { color: var(--accent); }
+
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent); display: inline-block;
+    margin-right: 6px; animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .hero { margin-bottom: 3rem; }
+
+  .hero-eyebrow {
+    font-family: var(--mono); font-size: 11px; color: var(--accent);
+    letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 1rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .hero-eyebrow::before { content: ''; display: block; width: 24px; height: 1px; background: var(--accent); }
+
+  h1 {
+    font-size: clamp(42px, 7vw, 68px); font-weight: 800;
+    line-height: 0.95; letter-spacing: -0.03em;
+    color: var(--text); margin-bottom: 1.25rem;
+  }
+
+  h1 em { font-style: normal; color: var(--accent); }
+
+  .hero-sub { font-size: 15px; color: var(--text2); line-height: 1.6; max-width: 440px; }
+
+  .input-card {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 14px; padding: 1.5rem; margin-bottom: 1.5rem;
+    position: relative; overflow: hidden;
+  }
+
+  .input-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: 0.5;
+  }
+
+  .input-label { font-family: var(--mono); font-size: 11px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
+
+  .input-row { display: flex; gap: 8px; }
+
+  input[type="text"] {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text); font-family: var(--mono);
+    font-size: 14px; padding: 0 14px; height: 46px; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s; width: 100%;
+  }
+
+  input[type="text"]::placeholder { color: var(--text3); }
+  input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200,245,96,0.1); }
+
+  .btn-primary {
+    background: var(--accent); color: #0a0a0a; border: none;
+    border-radius: var(--radius-sm); font-family: var(--sans);
+    font-size: 14px; font-weight: 700; padding: 0 22px; height: 46px;
+    cursor: pointer; white-space: nowrap; transition: background 0.15s, transform 0.1s;
+    letter-spacing: 0.02em;
+  }
+
+  .btn-primary:hover { background: var(--accent-dim); }
+  .btn-primary:active { transform: scale(0.97); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .error-msg { font-family: var(--mono); font-size: 12px; color: var(--red); margin-top: 10px; display: none; }
+  .error-msg.show { display: block; }
+
+  .result-box {
+    margin-top: 14px; background: rgba(200,245,96,0.06);
+    border: 1px solid rgba(200,245,96,0.2); border-radius: var(--radius-sm);
+    padding: 12px 14px; display: none; align-items: center;
+    justify-content: space-between; gap: 10px; animation: slideIn 0.25s ease;
+  }
+
+  .result-box.show { display: flex; }
+
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+  .short-link { font-family: var(--mono); font-size: 14px; color: var(--accent); word-break: break-all; }
+
+  .btn-copy {
+    background: transparent; border: 1px solid var(--border2); color: var(--text2);
+    border-radius: var(--radius-sm); font-family: var(--mono); font-size: 12px;
+    padding: 6px 14px; cursor: pointer; white-space: nowrap; transition: all 0.15s; flex-shrink: 0;
+  }
+
+  .btn-copy:hover { border-color: var(--accent); color: var(--accent); }
+
+  .nav-tabs {
+    display: flex; gap: 2px; margin-bottom: 1.25rem;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 4px;
+  }
+
+  .nav-tab {
+    flex: 1; padding: 9px; font-family: var(--sans); font-size: 13px;
+    font-weight: 600; color: var(--text3); background: transparent;
+    border: none; border-radius: 7px; cursor: pointer; transition: all 0.2s; letter-spacing: 0.02em;
+  }
+
+  .nav-tab.active { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .table-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden; margin-bottom: 2rem;
+  }
+
+  .table-header {
+    padding: 1rem 1.25rem; display: flex; align-items: center;
+    justify-content: space-between; border-bottom: 1px solid var(--border);
+  }
+
+  .table-header-title { font-family: var(--mono); font-size: 11px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; }
+
+  .btn-refresh {
+    background: transparent; border: 1px solid var(--border); color: var(--text3);
+    border-radius: var(--radius-sm); font-family: var(--mono); font-size: 11px;
+    padding: 5px 12px; cursor: pointer; transition: all 0.15s; letter-spacing: 0.05em;
+  }
+
+  .btn-refresh:hover { border-color: var(--border2); color: var(--text2); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+  thead th {
+    text-align: left; font-family: var(--mono); font-size: 10px; color: var(--text3);
+    letter-spacing: 0.12em; text-transform: uppercase; padding: 10px 1.25rem;
+    border-bottom: 1px solid var(--border); font-weight: 400;
+  }
+
+  tbody tr { transition: background 0.15s; border-bottom: 1px solid var(--border); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+
+  td { padding: 13px 1.25rem; color: var(--text); vertical-align: middle; }
+
+  .code-badge {
+    font-family: var(--mono); font-size: 12px; background: rgba(200,245,96,0.1);
+    color: var(--accent); padding: 3px 10px; border-radius: 4px;
+    border: 1px solid rgba(200,245,96,0.2); white-space: nowrap;
+  }
+
+  .long-url-cell {
+    display: block; max-width: 220px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+    color: var(--text2); font-family: var(--mono); font-size: 12px;
+  }
+
+  .clicks-val { font-family: var(--mono); font-size: 13px; color: var(--text); }
+
+  .btn-delete {
+    background: transparent; border: 1px solid transparent; color: var(--text3);
+    border-radius: var(--radius-sm); font-family: var(--mono); font-size: 11px;
+    padding: 5px 12px; cursor: pointer; transition: all 0.15s;
+  }
+
+  .btn-delete:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+
+  .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text3); font-family: var(--mono); font-size: 13px; letter-spacing: 0.05em; }
+
+  .stats-lookup {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.5rem; margin-bottom: 1.25rem;
+  }
+
+  .stats-result { margin-top: 1.25rem; display: none; animation: slideIn 0.25s ease; }
+  .stats-result.show { display: block; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 1rem; }
+
+  .stat-tile { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
+  .stat-tile-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px; }
+  .stat-tile-val { font-size: 26px; font-weight: 700; color: var(--accent); font-family: var(--mono); }
+  .stat-tile-val.sm { font-size: 16px; }
+
+  .origin-url-box { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+  .origin-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
+  .origin-val { font-family: var(--mono); font-size: 13px; color: var(--text2); word-break: break-all; line-height: 1.5; }
+
+  footer {
+    position: relative; z-index: 1; text-align: center; padding: 1.5rem;
+    font-family: var(--mono); font-size: 11px; color: var(--text3);
+    letter-spacing: 0.08em; border-top: 1px solid var(--border);
+  }
+
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(200,245,96,0.2); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+    vertical-align: middle; margin-right: 6px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-row { font-family: var(--mono); font-size: 12px; color: var(--text3); padding: 2rem; text-align: center; }
+
+  .toast {
+    position: fixed; bottom: 2rem; left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: var(--accent); color: #0a0a0a; font-family: var(--mono);
+    font-size: 13px; font-weight: 500; padding: 10px 20px; border-radius: 99px;
+    opacity: 0; transition: all 0.25s; pointer-events: none; z-index: 999; white-space: nowrap;
+  }
+
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+  <header>
+    <div class="logo"><span>snip</span>.dev</div>
+    <div style="font-family: var(--mono); font-size: 11px; color: var(--text3);">
+      <span class="status-dot"></span>running on :3000
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-eyebrow">URL Shortener</div>
+    <h1>Make it<br><em>shorter.</em></h1>
+    <p class="hero-sub">Paste any long URL and get a clean short link instantly. Track clicks, manage links, look up stats.</p>
+  </section>
+
+  <div class="input-card">
+    <p class="input-label">Paste your long URL</p>
+    <div class="input-row">
+      <input type="text" id="longUrl" placeholder="https://your-very-long-url.com/goes/right/here" />
+      <button class="btn-primary" id="shortenBtn" onclick="shortenUrl()">Snip it</button>
+    </div>
+    <p class="error-msg" id="errMsg"></p>
+    <div class="result-box" id="resultBox">
+      <span class="short-link" id="shortLinkText"></span>
+      <button class="btn-copy" onclick="copyLink()">Copy</button>
+    </div>
+  </div>
+
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('all')">All links</button>
+    <button class="nav-tab" onclick="switchTab('stats')">Stats lookup</button>
+  </div>
+
+  <div class="panel active" id="panel-all">
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-header-title">Your links</span>
+        <button class="btn-refresh" onclick="loadAll()">↻ refresh</button>
+      </div>
+      <div id="tableBody">
+        <div class="loading-row"><span class="spinner"></span>loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-stats">
+    <div class="stats-lookup">
+      <p class="input-label">Enter short code</p>
+      <div class="input-row">
+        <input type="text" id="statsCode" placeholder="e.g. kX92mPq" />
+        <button class="btn-primary" onclick="loadStats()">Look up</button>
+      </div>
+      <div class="stats-result" id="statsResult"></div>
+    </div>
+  </div>
+</div>
+
+<footer>built with node.js + postgresql</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+const BASE = 'http://localhost:3000';
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.nav-tab').forEach((t, i) => {
+    t.classList.toggle('active', ['all','stats'][i] === name);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (name === 'all') loadAll();
+}
+
+async function shortenUrl() {
+  const val = document.getElementById('longUrl').value.trim();
+  const err = document.getElementById('errMsg');
+  const box = document.getElementById('resultBox');
+  const btn = document.getElementById('shortenBtn');
+  err.classList.remove('show');
+  box.classList.remove('show');
+  if (!val) { err.textContent = '// url cannot be empty'; err.classList.add('show'); return; }
+  if (!val.startsWith('http')) { err.textContent = '// must start with http:// or https://'; err.classList.add('show'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Snipping...';
+  try {
+    const res = await fetch(`${BASE}/shorten`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ long_url: val })
+    });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = '// ' + (data.msg || 'error'); err.classList.add('show'); return; }
+    const code = data.data?.short_code || '';
+    document.getElementById('shortLinkText').textContent = `${BASE}/${code}`;
+    box.classList.add('show');
+    loadAll();
+  } catch(e) {
+    err.textContent = '// could not connect — is server running?';
+    err.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Snip it';
+  }
+}
+
+function copyLink() {
+  const txt = document.getElementById('shortLinkText').textContent;
+  navigator.clipboard.writeText(txt).then(() => showToast('Copied to clipboard'));
+}
+
+async function loadAll() {
+  const el = document.getElementById('tableBody');
+  el.innerHTML = '<div class="loading-row"><span class="spinner"></span>loading...</div>';
+  try {
+    const res = await fetch(`${BASE}/all`);
+    const data = await res.json();
+    const rows = data.data || [];
+    if (!rows.length) { el.innerHTML = '<div class="empty-state">// no links yet — snip one above</div>'; return; }
+    el.innerHTML = `<table>
+      <thead><tr>
+        <th>Short code</th><th>Original URL</th><th>Clicks</th><th>Created</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr>
+          <td><span class="code-badge">${r.short_code}</span></td>
+          <td><span class="long-url-cell" title="${r.long_url}">${r.long_url}</span></td>
+          <td><span class="clicks-val">${r.clicks}</span></td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--text3);">${new Date(r.created_at).toLocaleDateString()}</td>
+          <td><button class="btn-delete" onclick="deleteUrl('${r.short_code}')">delete</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state">// could not connect to server</div>';
+  }
+}
+
+async function deleteUrl(code) {
+  try {
+    await fetch(`${BASE}/delete/${code}`, { method: 'DELETE' });
+    showToast('Link deleted');
+    loadAll();
+  } catch(e) {}
+}
+
+async function loadStats() {
+  const code = document.getElementById('statsCode').value.trim();
+  const el = document.getElementById('statsResult');
+  if (!code) return;
+  el.innerHTML = '<div style="font-family:var(--mono);font-size:12px;color:var(--text3);padding-top:1rem;"><span class="spinner"></span>looking up...</div>';
+  el.classList.add('show');
+  try {
+    const res = await fetch(`${BASE}/stats/${code}`);
+    const data = await res.json();
+    if (!res.ok) { el.innerHTML = `<p style="font-family:var(--mono);font-size:12px;color:var(--red);padding-top:1rem;">// ${data.msg || 'not found'}</p>`; return; }
+    el.innerHTML = `
+      <div class="stats-grid" style="margin-top:1rem;">
+        <div class="stat-tile"><p class="stat-tile-label">Clicks</p><p class="stat-tile-val">${data.clicks ?? 0}</p></div>
+        <div class="stat-tile"><p class="stat-tile-label">Short code</p><p class="stat-tile-val sm">${data.short_url}</p></div>
+        <div class="stat-tile"><p class="stat-tile-label">ID</p><p class="stat-tile-val">${data.id}</p></div>
+      </div>
+      <div class="origin-url-box">
+        <p class="origin-label">Original URL</p>
+        <p class="origin-val">${data.long_url}</p>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = '<p style="font-family:var(--mono);font-size:12px;color:var(--red);padding-top:1rem;">// could not connect</p>';
+  }
+}
+
+document.getElementById('longUrl').addEventListener('keydown', e => { if (e.key === 'Enter') shortenUrl(); });
+document.getElementById('statsCode').addEventListener('keydown', e => { if (e.key === 'Enter') loadStats(); });
+
+loadAll();
+</script>
+</body>
+</html>
